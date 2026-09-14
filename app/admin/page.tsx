@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { fmt, n, day, pct } from '@/lib/format';
+import { fmt, n, day } from '@/lib/format';
 import { PageHeader, Chip } from '@/components/PageHeader';
 import { StatCard } from '@/components/StatCard';
 import { Section } from '@/components/Section';
@@ -67,7 +67,7 @@ export default async function OverviewPage() {
         <StatCard
           label="Pro 訂閱"
           value={fmt(s.pro_count)}
-          hint={`${fmt(s.total_profiles)} 位中 ${pct(s.pro_pct)}・年繳 ${fmt(s.yearly)}／月繳 ${fmt(s.monthly)}・本月成本 US$${fmt(c.usd_estimate, 2)}`}
+          hint={`${fmt(s.total_profiles)} 位中 ${fmt(s.pro_pct, 1)}%・年繳 ${fmt(s.yearly)}／月繳 ${fmt(s.monthly)}・本月成本 US$${fmt(c.usd_estimate, 2)}`}
         />
       </div>
 
