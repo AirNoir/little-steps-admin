@@ -10,6 +10,7 @@ const LABELS: Record<string, string> = {
   paywall_viewed: '看到付費牆',
   paywall_dismissed: '關掉付費牆',
   recording_truncated: '錄音達上限被截斷',
+  recording_cancelled: '錄音中途取消',
   report_shared: '分享回診摘要',
   data_exported: '匯出資料',
   invite_sent: '送出邀請',
