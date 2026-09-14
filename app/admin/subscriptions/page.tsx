@@ -60,7 +60,7 @@ export default async function SubscriptionsPage({ searchParams }: PageProps<'/ad
         <StatCard label="目前 Pro" value={fmt((pros ?? []).length)} hint={`月繳 ${(pros ?? []).filter((p) => p.subscription_id === 'pro_monthly').length}・年繳 ${(pros ?? []).filter((p) => p.subscription_id === 'pro_yearly').length}・後台開通 ${(pros ?? []).filter((p) => p.subscription_id === 'admin_comp').length}`} />
         <StatCard label="本月首購" value={fmt(count(['INITIAL_PURCHASE', 'NON_RENEWING_PURCHASE']))} hint="正式環境" />
         <StatCard label="本月續訂" value={fmt(count(['RENEWAL']))} hint={`取消 ${count(['CANCELLATION'])}・到期 ${count(['EXPIRATION'])}・扣款失敗 ${count(['BILLING_ISSUE'])}`} />
-        <StatCard label="本月營收（RevenueCat 報價）" value={`US$${fmt(revenue, 2)}`} hint="首購＋續訂，未扣 Apple 分潤" />
+        <StatCard label="本月營收" value={`US$${fmt(revenue, 2)}`} hint="RevenueCat 報價，首購＋續訂，未扣 Apple 分潤" />
       </div>
 
       <Section title="目前 Pro 名單" subtitle="依到期日排序；「後台開通」為手動補償，會被商店狀態覆寫">

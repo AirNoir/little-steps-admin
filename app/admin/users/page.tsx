@@ -43,7 +43,7 @@ export default async function UsersPage({ searchParams }: PageProps<'/admin/user
         id: u.id,
         email: u.email ?? p?.email ?? null,
         anonymous: !!u.is_anonymous,
-        providers: (u.identities ?? []).map((i) => i.provider).filter((x) => x !== 'email' || !u.is_anonymous),
+        providers: ((u.app_metadata?.providers as string[] | undefined) ?? [u.app_metadata?.provider as string | undefined]).filter((p): p is string => !!p && p !== 'anonymous'),
         created: u.created_at,
         lastSignIn: u.last_sign_in_at ?? null,
         kids: kidCount.get(u.id) ?? 0,
