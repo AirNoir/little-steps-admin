@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { fmt } from '@/lib/format';
+import { PageHeader } from '@/components/PageHeader';
+import { Badge } from '@/components/Badge';
 import { StatCard } from '@/components/StatCard';
 import { Section } from '@/components/Section';
 import { ConfirmButton } from '@/components/ConfirmButton';
@@ -73,7 +75,7 @@ export default async function UsersPage({ searchParams }: PageProps<'/admin/user
     <Link
       key={key}
       href={`/admin/users?plan=${key}${q ? `&q=${encodeURIComponent(q)}` : ''}`}
-      className={`rounded-full px-3 py-1 text-sm ${plan === key ? 'bg-primary text-white' : 'bg-bg text-muted hover:text-ink'}`}
+      className={`rounded-full px-3 py-1 text-xs font-medium transition ${plan === key ? 'bg-primary text-white' : 'border border-line bg-surface text-muted hover:text-ink'}`}
     >
       {label}
     </Link>
@@ -81,10 +83,7 @@ export default async function UsersPage({ searchParams }: PageProps<'/admin/user
 
   return (
     <>
-      <header>
-        <h1 className="text-xl font-semibold">使用者</h1>
-        <p className="text-sm text-muted">帳號、登入方式、使用量與訂閱狀態；Pro 可在這裡手動開通或取消</p>
-      </header>
+      <PageHeader title="使用者" subtitle="帳號、登入方式、使用量與訂閱狀態；Pro 可在這裡手動開通或取消" />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="使用者" value={fmt(stats.total)} hint={`訪客（匿名）${fmt(stats.guests)}`} />
@@ -100,9 +99,9 @@ export default async function UsersPage({ searchParams }: PageProps<'/admin/user
             name="q"
             defaultValue={q}
             placeholder="搜尋 Email 或使用者 ID"
-            className="w-64 rounded-lg border border-line px-3 py-1.5 text-sm outline-none focus:border-primary"
+            className="w-64 rounded-xl border border-line bg-bg/60 px-3 py-1.5 text-sm outline-none transition focus:border-primary focus:bg-surface focus:ring-2 focus:ring-primary/15"
           />
-          <button className="rounded-lg border border-line px-3 py-1.5 text-sm hover:bg-bg" type="submit">搜尋</button>
+          <button className="rounded-xl border border-line bg-surface px-3 py-1.5 text-sm hover:bg-bg" type="submit">搜尋</button>
           <div className="ml-auto flex gap-1">{tab('all', '全部')}{tab('pro', 'Pro')}{tab('free', '免費')}{tab('guest', '訪客')}</div>
         </form>
 
@@ -112,29 +111,36 @@ export default async function UsersPage({ searchParams }: PageProps<'/admin/user
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line text-left text-muted">
-                  {['使用者', '登入方式', '註冊', '最近登入', '孩子', '錄音', '方案', '到期', ''].map((h) => (
-                    <th key={h} className="py-2 pr-4 font-medium">{h}</th>
+                <tr>
+                  {['使用者', '登入方式', '註冊', '最近登入', '孩子', '錄音', '方案', '到期', ''].map((h, i) => (
+                    <th key={h + i} className="label-caps border-b border-line pb-2 pr-4 text-left">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {shown.map((u) => (
-                  <tr key={u.id} className="border-b border-line/60 last:border-0">
-                    <td className="py-2 pr-4">
-                      <div>{u.anonymous ? <span className="text-muted">訪客（匿名）</span> : u.email ?? '—'}</div>
-                      <div className="font-mono text-[11px] text-muted" title={u.id}>{u.id.slice(0, 8)}</div>
+                  <tr key={u.id} className="border-b border-line/60 transition-colors last:border-0 hover:bg-bg/60">
+                    <td className="py-2.5 pr-4">
+                      <div className="flex items-center gap-3">
+                        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-semibold ${u.anonymous ? 'bg-bg text-subtle' : 'bg-primary-soft text-primary'}`}>
+                          {u.anonymous ? '訪' : (u.email ?? '?').slice(0, 1).toUpperCase()}
+                        </span>
+                        <div>
+                          <div>{u.anonymous ? <span className="text-muted">訪客（匿名）</span> : u.email ?? '—'}</div>
+                          <div className="font-mono text-[11px] text-subtle" title={u.id}>{u.id.slice(0, 8)}</div>
+                        </div>
+                      </div>
                     </td>
-                    <td className="py-2 pr-4">{u.anonymous ? '匿名' : u.providers.join(', ') || '—'}</td>
+                    <td className="py-2.5 pr-4">{u.anonymous ? <Badge>匿名</Badge> : u.providers.length ? u.providers.map((p) => <Badge key={p} tone="info">{p}</Badge>) : '—'}</td>
                     <td className="py-2 pr-4 whitespace-nowrap">{tw(u.created)}</td>
                     <td className="py-2 pr-4 whitespace-nowrap">{tw(u.lastSignIn)}</td>
                     <td className="py-2 pr-4 tabular-nums">{u.kids}</td>
                     <td className="py-2 pr-4 tabular-nums">{u.logs}</td>
                     <td className="py-2 pr-4 whitespace-nowrap">
                       {u.isPro ? (
-                        <span className="rounded-full bg-accent/30 px-2 py-0.5 text-xs font-medium">Pro・{PLAN_LABEL[u.plan ?? ''] ?? u.plan ?? '—'}</span>
+                        <Badge tone={u.plan === 'admin_comp' ? 'accent' : 'success'}>Pro・{PLAN_LABEL[u.plan ?? ''] ?? u.plan ?? '—'}</Badge>
                       ) : (
-                        <span className="text-muted">免費</span>
+                        <span className="text-subtle">免費</span>
                       )}
                     </td>
                     <td className="py-2 pr-4 whitespace-nowrap">{tw(u.expires)}</td>
@@ -143,14 +149,14 @@ export default async function UsersPage({ searchParams }: PageProps<'/admin/user
                         <form action={setPro} className="inline">
                           <input type="hidden" name="userId" value={u.id} />
                           <input type="hidden" name="value" value="false" />
-                          <ConfirmButton message={`取消 ${u.email ?? u.id.slice(0, 8)} 的 Pro？`} className="text-xs text-danger hover:underline">取消 Pro</ConfirmButton>
+                          <ConfirmButton message={`取消 ${u.email ?? u.id.slice(0, 8)} 的 Pro？`} className="rounded-full border border-danger/30 px-2.5 py-1 text-xs text-danger transition hover:bg-danger-soft">取消 Pro</ConfirmButton>
                         </form>
                       ) : (
                         <form action={setPro} className="inline">
                           <input type="hidden" name="userId" value={u.id} />
                           <input type="hidden" name="value" value="true" />
                           <input type="hidden" name="months" value="1" />
-                          <ConfirmButton message={`開通 ${u.email ?? u.id.slice(0, 8)} 的 Pro 一個月？`} className="text-xs text-primary hover:underline">開通 Pro 1 個月</ConfirmButton>
+                          <ConfirmButton message={`開通 ${u.email ?? u.id.slice(0, 8)} 的 Pro 一個月？`} className="rounded-full border border-primary/30 px-2.5 py-1 text-xs text-primary transition hover:bg-primary-soft">開通 Pro 1 個月</ConfirmButton>
                         </form>
                       )}
                     </td>

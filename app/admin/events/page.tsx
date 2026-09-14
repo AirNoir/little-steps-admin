@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { fmt, n } from '@/lib/format';
+import { PageHeader } from '@/components/PageHeader';
 import { Section } from '@/components/Section';
 import { Table } from '@/components/Table';
 
@@ -39,10 +40,7 @@ export default async function EventsPage() {
 
   return (
     <>
-      <header>
-        <h1 className="text-xl font-semibold">事件</h1>
-        <p className="text-sm text-muted">App 與伺服器記錄的行為事件，近 30 天</p>
-      </header>
+      <PageHeader title="事件" subtitle="App 與伺服器記錄的行為事件，近 30 天" />
       <Section title="事件總覽" subtitle="使用者數為單日最高（去重）">
         <Table
           head={['事件', '次數', '使用者（單日最高）']}

@@ -1,6 +1,8 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { fmt, n } from '@/lib/format';
+import { PageHeader } from '@/components/PageHeader';
 import { Section } from '@/components/Section';
+import { EmptyState } from '@/components/EmptyState';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,42 +17,51 @@ export default async function RetentionPage() {
 
   return (
     <>
-      <header>
-        <h1 className="text-xl font-semibold">留存</h1>
-        <p className="text-sm text-muted">以註冊週分群，第 N 週仍有錄音的比例</p>
-      </header>
-      <Section title="週留存" subtitle="顏色越深留存越高；樣本少於 5 人的格子只供參考">
+      <PageHeader title="留存" subtitle="以註冊週分群，第 N 週仍有錄音的比例" />
+      <Section
+        title="週留存熱圖"
+        subtitle="顏色越深留存越高；樣本少於 5 人的格子只供參考"
+        right={
+          <div className="flex items-center gap-2 text-xs text-muted">
+            0%
+            <span className="h-2 w-28 rounded-full" style={{ background: 'linear-gradient(90deg, rgba(36,94,92,.06), rgba(36,94,92,.9))' }} />
+            100%
+          </div>
+        }
+      >
         {cohorts.length === 0 ? (
-          <p className="text-sm text-muted">還沒有足夠資料</p>
+          <EmptyState text="還沒有足夠資料" />
         ) : (
           <div className="overflow-x-auto">
             <table className="text-sm">
               <thead>
-                <tr className="text-left text-muted">
-                  <th className="py-2 pr-4 font-medium">註冊週</th>
-                  <th className="py-2 pr-4 font-medium">人數</th>
+                <tr>
+                  <th className="label-caps pb-2 pr-4 text-left">註冊週</th>
+                  <th className="label-caps pb-2 pr-4 text-right">人數</th>
                   {Array.from({ length: maxOffset + 1 }, (_, i) => (
-                    <th key={i} className="px-2 py-2 text-center font-medium">W{i}</th>
+                    <th key={i} className="label-caps px-1 pb-2 text-center">W{i}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {cohorts.map(([week, size]) => (
-                  <tr key={week} className="border-t border-line/60">
-                    <td className="whitespace-nowrap py-2 pr-4">{String(week).slice(0, 10)}</td>
-                    <td className="py-2 pr-4 tabular-nums">{fmt(size)}</td>
+                  <tr key={week}>
+                    <td className="whitespace-nowrap py-1 pr-4 text-muted">{String(week).slice(0, 10)}</td>
+                    <td className="py-1 pr-4 text-right tabular-nums">{fmt(size)}</td>
                     {Array.from({ length: maxOffset + 1 }, (_, i) => {
                       const c = cell(week, i);
-                      if (!c) return <td key={i} className="px-2 py-2 text-center text-muted">—</td>;
+                      if (!c) return <td key={i} className="px-1 py-1"><div className="h-9 w-14 rounded-lg border border-dashed border-line/70" /></td>;
                       const ratio = n(size) ? n(c.retained) / n(size) : 0;
+                      const weak = n(size) < 5;
                       return (
-                        <td
-                          key={i}
-                          className="px-2 py-2 text-center tabular-nums"
-                          style={{ backgroundColor: `rgba(44, 95, 93, ${Math.min(0.85, ratio * 0.9 + 0.05)})`, color: ratio > 0.45 ? '#fff' : '#1a2332' }}
-                          title={`${fmt(c.retained)} / ${fmt(size)}`}
-                        >
-                          {Math.round(ratio * 100)}%
+                        <td key={i} className="px-1 py-1">
+                          <div
+                            className={`grid h-9 w-14 place-items-center rounded-lg text-xs font-medium tabular-nums ${weak ? 'opacity-60' : ''}`}
+                            style={{ backgroundColor: `rgba(36, 94, 92, ${Math.min(0.9, ratio * 0.85 + 0.06)})`, color: ratio > 0.4 ? '#fff' : '#16232b' }}
+                            title={`${fmt(c.retained)} / ${fmt(size)}${weak ? '（樣本少）' : ''}`}
+                          >
+                            {Math.round(ratio * 100)}%
+                          </div>
                         </td>
                       );
                     })}
