@@ -15,6 +15,7 @@ const LABELS: Record<string, string> = {
   invite_redeemed: '兌換邀請',
   quota_blocked: '額度被擋（伺服器）',
   analyze_failed: '分析失敗（伺服器）',
+  admin_set_pro: '後台手動調整 Pro',
 };
 
 export default async function EventsPage() {

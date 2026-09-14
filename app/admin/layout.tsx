@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/requireAdmin';
 
 const NAV = [
   { href: '/admin', label: '概況' },
+  { href: '/admin/users', label: '使用者' },
   { href: '/admin/retention', label: '留存' },
   { href: '/admin/cost', label: '成本' },
   { href: '/admin/events', label: '事件' },
