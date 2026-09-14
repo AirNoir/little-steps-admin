@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { sendMagicLink } from './actions';
 
 const ERRORS: Record<string, string> = {
@@ -15,7 +16,7 @@ export default async function LoginPage({ searchParams }: PageProps<'/login'>) {
     <main className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-2xl border border-line bg-white p-8 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-lg text-white">步</span>
+          <Image src="/logo.png" alt="小步腳印" width={48} height={48} className="rounded-xl" priority />
           <div>
             <h1 className="text-lg font-semibold">小步腳印 後台</h1>
             <p className="text-sm text-muted">僅限管理者</p>

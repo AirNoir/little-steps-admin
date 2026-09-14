@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/requireAdmin';
 
@@ -14,7 +15,7 @@ export default async function AdminLayout({ children }: LayoutProps<'/admin'>) {
     <div className="min-h-screen md:flex">
       <aside className="border-b border-line bg-white md:flex md:w-56 md:flex-col md:border-b-0 md:border-r">
         <div className="flex items-center gap-3 px-5 py-4">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-white">步</span>
+          <Image src="/logo.png" alt="小步腳印" width={40} height={40} className="rounded-xl" />
           <div className="leading-tight">
             <p className="font-semibold">小步腳印</p>
             <p className="text-xs text-muted">營運後台</p>
