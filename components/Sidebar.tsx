@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, Coins, CreditCard, LayoutDashboard, LogOut, Repeat, Users } from 'lucide-react';
+import { Activity, Coins, CreditCard, LayoutDashboard, LogOut, MessageSquare, Repeat, Users } from 'lucide-react';
 
 const NAV = [
   { href: '/admin', label: '概況', icon: LayoutDashboard },
@@ -12,6 +12,7 @@ const NAV = [
   { href: '/admin/retention', label: '留存', icon: Repeat },
   { href: '/admin/cost', label: '成本', icon: Coins },
   { href: '/admin/events', label: '事件', icon: Activity },
+  { href: '/admin/feedback', label: '意見回饋', icon: MessageSquare },
 ];
 
 export function Sidebar({ email }: { email: string }) {
