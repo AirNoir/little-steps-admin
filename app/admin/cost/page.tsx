@@ -5,11 +5,19 @@ import { StatCard } from '@/components/StatCard';
 import { Section } from '@/components/Section';
 import { Table } from '@/components/Table';
 import { CostChart } from '@/components/charts/CostChart';
+import { unstable_cache } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 
+// v_cost_estimate 聚合全 voice_logs。路由因 auth 是 dynamic，故快取查詢本身 5 分鐘。
+const getCost = unstable_cache(
+  async () => supabaseAdmin.from('v_cost_estimate').select('*').order('month', { ascending: true }),
+  ['admin-cost'],
+  { revalidate: 300 },
+);
+
 export default async function CostPage() {
-  const { data } = await supabaseAdmin.from('v_cost_estimate').select('*').order('month', { ascending: true });
+  const { data } = await getCost();
   const rows = data ?? [];
   const total = rows.reduce((t, r) => t + n(r.usd_estimate), 0);
   const cur = rows[rows.length - 1] ?? {};

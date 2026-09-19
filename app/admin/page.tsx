@@ -6,20 +6,31 @@ import { Section } from '@/components/Section';
 import { Table } from '@/components/Table';
 import { Badge } from '@/components/Badge';
 import { DailyChart } from '@/components/charts/DailyChart';
+import { unstable_cache } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
+
+// 概況跑 6 個重量級聚合 view，是落地頁又最常被打。路由因 auth（layout 讀 cookie）
+// 一定是 dynamic，route-level revalidate 無效，所以改用 data cache 快取查詢本身
+// 5 分鐘——每次刷新不再重算全表，是 Disk IO 的主要止血點之一。
+const getOverview = unstable_cache(
+  async () =>
+    Promise.all([
+      supabaseAdmin.from('v_active_summary').select('*').maybeSingle(),
+      supabaseAdmin.from('v_subscription_summary').select('*').maybeSingle(),
+      supabaseAdmin.from('v_feature_adoption').select('*').maybeSingle(),
+      supabaseAdmin.from('v_daily_overview').select('*').order('day', { ascending: true }),
+      supabaseAdmin.from('v_session_type_mix').select('*').order('recordings', { ascending: false }),
+      supabaseAdmin.from('v_cost_estimate').select('*').order('month', { ascending: false }).limit(1).maybeSingle(),
+    ]),
+  ['admin-overview'],
+  { revalidate: 300 },
+);
 
 const delta = (cur: number, prev: number) => (prev === 0 ? (cur === 0 ? 0 : null) : Math.round(((cur - prev) / prev) * 100));
 
 export default async function OverviewPage() {
-  const [active, subs, feature, daily, mix, cost] = await Promise.all([
-    supabaseAdmin.from('v_active_summary').select('*').maybeSingle(),
-    supabaseAdmin.from('v_subscription_summary').select('*').maybeSingle(),
-    supabaseAdmin.from('v_feature_adoption').select('*').maybeSingle(),
-    supabaseAdmin.from('v_daily_overview').select('*').order('day', { ascending: true }),
-    supabaseAdmin.from('v_session_type_mix').select('*').order('recordings', { ascending: false }),
-    supabaseAdmin.from('v_cost_estimate').select('*').order('month', { ascending: false }).limit(1).maybeSingle(),
-  ]);
+  const [active, subs, feature, daily, mix, cost] = await getOverview();
 
   const a = active.data ?? {};
   const s = subs.data ?? {};

@@ -3,13 +3,22 @@ import { fmt, n } from '@/lib/format';
 import { PageHeader } from '@/components/PageHeader';
 import { Section } from '@/components/Section';
 import { EmptyState } from '@/components/EmptyState';
+import { unstable_cache } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 
 type Row = { cohort_week: string; cohort_size: number; week_offset: number; retained: number };
 
+// v_retention_weekly 最重（全 users×logs cohort）。路由因 auth 是 dynamic，
+// 故快取查詢本身 5 分鐘（DB 端另有 materialized view 兜底，見 App repo migration）。
+const getRetention = unstable_cache(
+  async () => supabaseAdmin.from('v_retention_weekly').select('*').order('cohort_week', { ascending: false }),
+  ['admin-retention'],
+  { revalidate: 300 },
+);
+
 export default async function RetentionPage() {
-  const { data } = await supabaseAdmin.from('v_retention_weekly').select('*').order('cohort_week', { ascending: false });
+  const { data } = await getRetention();
   const rows = (data ?? []) as Row[];
   const cohorts = [...new Map(rows.map((r) => [r.cohort_week, r.cohort_size])).entries()];
   const maxOffset = Math.min(8, Math.max(0, ...rows.map((r) => n(r.week_offset))));

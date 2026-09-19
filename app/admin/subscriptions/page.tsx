@@ -30,12 +30,16 @@ export default async function SubscriptionsPage({ searchParams }: PageProps<'/ad
   const env = sp.env === 'all' ? 'all' : 'production';
   const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
 
-  const [{ data: pros }, { data: events }, { data: profiles }] = await Promise.all([
+  const [{ data: pros }, { data: events }] = await Promise.all([
     supabaseAdmin.from('profiles').select('id,email,is_pro,subscription_id,subscription_expires_at,updated_at').eq('is_pro', true).order('subscription_expires_at', { ascending: true }),
     supabaseAdmin.from('subscription_events').select('*').order('created_at', { ascending: false }).limit(300),
-    supabaseAdmin.from('profiles').select('id,email'),
   ]);
-  const emailOf = new Map((profiles ?? []).map((p) => [p.id, p.email as string | null]));
+  // 只撈事件涉及的使用者 email（≤300 筆），不再整表掃 profiles。
+  const eventUserIds = [...new Set((events ?? []).map((e) => e.user_id).filter(Boolean) as string[])];
+  const { data: emailRows } = eventUserIds.length
+    ? await supabaseAdmin.from('profiles').select('id,email').in('id', eventUserIds)
+    : { data: [] as { id: string; email: string | null }[] };
+  const emailOf = new Map((emailRows ?? []).map((p) => [p.id, p.email as string | null]));
   const all = events ?? [];
   const shown = all.filter((e) => env === 'all' || (e.environment ?? 'PRODUCTION') !== 'SANDBOX');
   const prod = all.filter((e) => (e.environment ?? 'PRODUCTION') !== 'SANDBOX');
