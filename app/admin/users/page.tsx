@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { fmt } from '@/lib/format';
+import { fmt, n } from '@/lib/format';
 import { PageHeader } from '@/components/PageHeader';
 import { Badge } from '@/components/Badge';
 import { StatCard } from '@/components/StatCard';
@@ -20,21 +20,17 @@ export default async function UsersPage({ searchParams }: PageProps<'/admin/user
   const q = typeof sp.q === 'string' ? sp.q.trim().toLowerCase() : '';
   const plan = typeof sp.plan === 'string' ? sp.plan : 'all';
 
-  const [{ data: authData }, { data: profiles }, { data: kids }, { data: logs }] = await Promise.all([
+  // 逐人的錄音數／孩子數改由 DB view v_admin_users 在 SQL 端聚合，
+  // 不再整表撈 voice_logs + children 回來用 JS 數——那是 Disk IO 與 1000 筆上限的來源。
+  const [{ data: authData }, { data: profiles }, { data: counts }] = await Promise.all([
     supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
     supabaseAdmin.from('profiles').select('id,email,is_pro,subscription_id,subscription_expires_at'),
-    supabaseAdmin.from('children').select('user_id'),
-    supabaseAdmin.from('voice_logs').select('user_id'),
+    supabaseAdmin.from('v_admin_users').select('id,recording_count,child_count'),
   ]);
 
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p as Profile]));
-  const count = (rows: { user_id: string | null }[] | null) => {
-    const m = new Map<string, number>();
-    for (const r of rows ?? []) if (r.user_id) m.set(r.user_id, (m.get(r.user_id) ?? 0) + 1);
-    return m;
-  };
-  const kidCount = count(kids);
-  const logCount = count(logs);
+  const kidCount = new Map((counts ?? []).map((r) => [r.id as string, n(r.child_count)]));
+  const logCount = new Map((counts ?? []).map((r) => [r.id as string, n(r.recording_count)]));
 
   const users = (authData?.users ?? [])
     .map((u) => {
@@ -70,6 +66,14 @@ export default async function UsersPage({ searchParams }: PageProps<'/admin/user
     if (q && !(u.email ?? '').toLowerCase().includes(q) && !u.id.startsWith(q)) return false;
     return true;
   });
+
+  // 分頁：搜尋/篩選/排序都在完整清單上做完，再切出當頁列。切換 tab/搜尋會回到第 1 頁。
+  const PAGE_SIZE = 50;
+  const page = Math.max(1, Number(typeof sp.page === 'string' ? sp.page : '1') || 1);
+  const totalPages = Math.max(1, Math.ceil(shown.length / PAGE_SIZE));
+  const pageRows = shown.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageHref = (p: number) =>
+    `/admin/users?plan=${plan}${q ? `&q=${encodeURIComponent(q)}` : ''}&page=${p}`;
 
   const tab = (key: string, label: string) => (
     <Link
@@ -108,6 +112,7 @@ export default async function UsersPage({ searchParams }: PageProps<'/admin/user
         {shown.length === 0 ? (
           <p className="text-sm text-muted">沒有符合的使用者</p>
         ) : (
+          <>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -118,7 +123,7 @@ export default async function UsersPage({ searchParams }: PageProps<'/admin/user
                 </tr>
               </thead>
               <tbody>
-                {shown.map((u) => (
+                {pageRows.map((u) => (
                   <tr key={u.id} className="border-b border-line/60 transition-colors last:border-0 hover:bg-bg/60">
                     <td className="py-2.5 pr-4">
                       <div className="flex items-center gap-3">
@@ -165,6 +170,22 @@ export default async function UsersPage({ searchParams }: PageProps<'/admin/user
               </tbody>
             </table>
           </div>
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-center gap-3 text-sm">
+              {page > 1 ? (
+                <Link href={pageHref(page - 1)} className="rounded-xl border border-line bg-surface px-3 py-1.5 hover:bg-bg">← 上一頁</Link>
+              ) : (
+                <span className="rounded-xl border border-line px-3 py-1.5 text-subtle opacity-50">← 上一頁</span>
+              )}
+              <span className="text-muted">第 {page} / {totalPages} 頁（共 {fmt(shown.length)} 筆）</span>
+              {page < totalPages ? (
+                <Link href={pageHref(page + 1)} className="rounded-xl border border-line bg-surface px-3 py-1.5 hover:bg-bg">下一頁 →</Link>
+              ) : (
+                <span className="rounded-xl border border-line px-3 py-1.5 text-subtle opacity-50">下一頁 →</span>
+              )}
+            </div>
+          )}
+          </>
         )}
       </Section>
     </>
