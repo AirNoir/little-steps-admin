@@ -5,6 +5,8 @@ import { StatCard } from '@/components/StatCard';
 import { Badge } from '@/components/Badge';
 import { EmptyState } from '@/components/EmptyState';
 import { setFeedbackStatus, setFeedbackNote } from './actions';
+import { ArrowDownUp } from 'lucide-react';
+import { compareSortValues, sortBy, ts, type SortDir, type SortValue } from '@/lib/sort';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +28,18 @@ const STATUS_LABEL: Record<string, string> = {
   in_progress: '處理中',
   done: '已完成',
 };
+const STATUS_RANK: Record<string, number> = { new: 0, in_progress: 1, done: 2 };
+
+// 回饋是卡片不是表格，用「排序」切換代替點表頭。都在撈回來的 ≤200 筆上排；同值再依時間新→舊。
+const SORTS: { key: string; label: string; dir: SortDir; value: (r: Row) => SortValue }[] = [
+  { key: 'newest', label: '最新', dir: 'desc', value: (r) => ts(r.created_at) },
+  { key: 'oldest', label: '最舊', dir: 'asc', value: (r) => ts(r.created_at) },
+  { key: 'status', label: '狀態', dir: 'asc', value: (r) => STATUS_RANK[r.status] ?? null },
+  { key: 'pro', label: 'Pro 優先', dir: 'desc', value: (r) => (r.is_pro ? 1 : 0) },
+  { key: 'contact', label: '可回覆優先', dir: 'desc', value: (r) => (r.contact_email ? 1 : 0) },
+  { key: 'version', label: 'App 版本', dir: 'desc', value: (r) => r.app_version },
+];
+
 const STATUS_TONE: Record<string, 'danger' | 'accent' | 'success'> = {
   new: 'danger',
   in_progress: 'accent',
@@ -35,9 +49,10 @@ const STATUS_TONE: Record<string, 'danger' | 'accent' | 'success'> = {
 export default async function FeedbackPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; sort?: string }>;
 }) {
-  const { status: filter = 'open' } = await searchParams;
+  const { status: filter = 'open', sort: sortParam } = await searchParams;
+  const sortKey = SORTS.some((o) => o.key === sortParam) ? (sortParam as string) : 'newest';
 
   let query = supabaseAdmin
     .from('feedback')
@@ -48,7 +63,10 @@ export default async function FeedbackPage({
   else if (filter !== 'all') query = query.eq('status', filter);
 
   const { data, error } = await query;
-  const rows = (data ?? []) as Row[];
+  const sortDef = SORTS.find((o) => o.key === sortKey)!;
+  const byTime = sortBy((data ?? []) as Row[], (r) => ts(r.created_at), 'desc');
+  const rows = [...byTime].sort((a, b) => compareSortValues(sortDef.value(a), sortDef.value(b), sortDef.dir));
+  const href = (status: string, sort: string) => `/admin/feedback?status=${status}${sort !== 'newest' ? `&sort=${sort}` : ''}`;
 
   // 表還沒建立時給可操作的訊息，而不是一個空白頁
   if (error) {
@@ -86,11 +104,11 @@ export default async function FeedbackPage({
         <StatCard label="可回覆" value={String(withContact)} hint="有留聯絡信箱" />
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-5">
+      <div className="flex flex-wrap items-center gap-2 mb-5">
         {tabs.map((t) => (
           <a
             key={t.key}
-            href={`/admin/feedback?status=${t.key}`}
+            href={href(t.key, sortKey)}
             className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
               filter === t.key
                 ? 'border-primary bg-primary text-white'
@@ -100,9 +118,24 @@ export default async function FeedbackPage({
             {t.label}
           </a>
         ))}
+        <div className="ml-auto flex flex-wrap items-center gap-1 rounded-full border border-line bg-surface p-1" role="group" aria-label="排序">
+          <span className="flex items-center gap-1 pl-2 pr-1 text-xs text-subtle"><ArrowDownUp size={12} />排序</span>
+          {SORTS.map((o) => (
+            <a
+              key={o.key}
+              href={href(filter, o.key)}
+              aria-current={sortKey === o.key ? 'true' : undefined}
+              className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
+                sortKey === o.key ? 'bg-primary-soft text-primary' : 'text-muted hover:bg-bg hover:text-ink'
+              }`}
+            >
+              {o.label}
+            </a>
+          ))}
+        </div>
       </div>
 
-      <Section title={`${rows.length} 則回饋`} subtitle="最新的在最上面">
+      <Section title={`${rows.length} 則回饋`} subtitle={sortKey === 'newest' ? '最新的在最上面' : `依「${sortDef.label}」排序，同值時新的在上面`}>
         {rows.length === 0 ? (
           <EmptyState text="沒有回饋。使用者從 App 設定頁的「回報問題」送出後會出現在這裡" />
         ) : (

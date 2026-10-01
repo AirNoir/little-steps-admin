@@ -6,6 +6,7 @@ import { StatCard } from '@/components/StatCard';
 import { Section } from '@/components/Section';
 import { Table } from '@/components/Table';
 import { Badge } from '@/components/Badge';
+import { ts } from '@/lib/sort';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,6 +77,13 @@ export default async function SubscriptionsPage({ searchParams }: PageProps<'/ad
             tw(p.subscription_expires_at),
             tw(p.updated_at),
           ])}
+          sortValues={(pros ?? []).map((p) => [
+            p.email ?? null,
+            PLAN[String(p.subscription_id)] ?? p.subscription_id ?? null,
+            ts(p.subscription_expires_at),
+            ts(p.updated_at),
+          ])}
+          defaultSort={{ col: 2, dir: 'asc' }}
           empty="目前沒有 Pro 使用者"
         />
       </Section>
@@ -97,6 +105,19 @@ export default async function SubscriptionsPage({ searchParams }: PageProps<'/ad
               e.expiration_at ? String(e.expiration_at).slice(0, 10) : '—',
             ];
           })}
+          sortValues={shown.map((e) => {
+            const uid = e.user_id ? String(e.user_id) : null;
+            return [
+              ts(String(e.created_at)),
+              TYPE[String(e.type)]?.label ?? String(e.type),
+              uid ? (emailOf.get(uid) ?? uid) : null,
+              PLAN[String(e.product_id)] ?? e.product_id ?? null,
+              e.store ?? null,
+              e.price_usd != null ? n(e.price_usd) : null,
+              ts(e.expiration_at ? String(e.expiration_at) : null),
+            ];
+          })}
+          defaultSort={{ col: 0, dir: 'desc' }}
           empty="還沒有事件。webhook 從 2026-09-14 起開始寫入，之前的交易請看 RevenueCat 後台。"
         />
       </Section>

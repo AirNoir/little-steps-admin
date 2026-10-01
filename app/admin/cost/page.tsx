@@ -6,6 +6,7 @@ import { Section } from '@/components/Section';
 import { Table } from '@/components/Table';
 import { CostChart } from '@/components/charts/CostChart';
 import { unstable_cache } from 'next/cache';
+import { ts } from '@/lib/sort';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +46,14 @@ export default async function CostPage() {
             n(r.recordings) ? `US$${fmt(n(r.usd_estimate) / n(r.recordings), 3)}` : '—',
             <span key="u" className="font-medium">US${fmt(r.usd_estimate, 2)}</span>,
           ])}
+          sortValues={[...rows].reverse().map((r) => [
+            ts(String(r.month)),
+            n(r.recordings),
+            n(r.minutes),
+            n(r.recordings) ? n(r.usd_estimate) / n(r.recordings) : null,
+            n(r.usd_estimate),
+          ])}
+          defaultSort={{ col: 0, dir: 'desc' }}
         />
       </Section>
     </>

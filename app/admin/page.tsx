@@ -7,6 +7,7 @@ import { Table } from '@/components/Table';
 import { Badge } from '@/components/Badge';
 import { DailyChart } from '@/components/charts/DailyChart';
 import { unstable_cache } from 'next/cache';
+import { ts } from '@/lib/sort';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,6 +45,15 @@ export default async function OverviewPage() {
   const prev7 = all.slice(-14, -7);
   const activeSet7 = sum(last7, 'active_users');
   const activePrev7 = sum(prev7, 'active_users');
+
+  const adoption: [string, unknown][] = [
+    ['有里程碑紀錄的孩子', f.children_with_milestone],
+    ['有回家練習的孩子', f.children_with_program],
+    ['練習打卡次數', f.programs_checked_in],
+    ['共同照顧者連結', f.caregiver_links],
+    ['邀請碼建立', f.caregiver_invites_created],
+    ['治療師連結', f.therapist_links],
+  ];
 
   const updated = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 
@@ -98,14 +108,8 @@ export default async function OverviewPage() {
           <Table
             head={['功能', '數量']}
             align={['left', 'right']}
-            rows={[
-              ['有里程碑紀錄的孩子', fmt(f.children_with_milestone)],
-              ['有回家練習的孩子', fmt(f.children_with_program)],
-              ['練習打卡次數', fmt(f.programs_checked_in)],
-              ['共同照顧者連結', fmt(f.caregiver_links)],
-              ['邀請碼建立', fmt(f.caregiver_invites_created)],
-              ['治療師連結', fmt(f.therapist_links)],
-            ]}
+            rows={adoption.map(([label, v]) => [label, fmt(v)])}
+            sortValues={adoption.map(([label, v]) => [label, n(v)])}
           />
         </Section>
         <Section title="錄音類型" subtitle="日常觀察 vs 治療類">
@@ -118,6 +122,8 @@ export default async function OverviewPage() {
               fmt(r.users),
               r.last_used ? String(r.last_used).slice(0, 10) : '—',
             ])}
+            sortValues={(mix.data ?? []).map((r) => [String(r.session_type ?? '未標記'), n(r.recordings), n(r.users), ts(r.last_used ? String(r.last_used) : null)])}
+            defaultSort={{ col: 1, dir: 'desc' }}
           />
         </Section>
       </div>

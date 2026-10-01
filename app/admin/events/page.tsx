@@ -3,6 +3,7 @@ import { fmt, n } from '@/lib/format';
 import { PageHeader } from '@/components/PageHeader';
 import { Section } from '@/components/Section';
 import { Table } from '@/components/Table';
+import { ts } from '@/lib/sort';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +46,10 @@ export default async function EventsPage() {
       <Section title="事件總覽" subtitle="使用者數為單日最高（去重）">
         <Table
           head={['事件', '次數', '使用者（單日最高）']}
+          align={['left', 'right', 'right']}
           rows={rows.map(([name, v]) => [LABELS[name] ?? name, fmt(v.events), fmt(v.users)])}
+          sortValues={rows.map(([name, v]) => [LABELS[name] ?? name, v.events, v.users])}
+          defaultSort={{ col: 1, dir: 'desc' }}
           empty="近 30 天沒有事件"
         />
       </Section>
@@ -57,6 +61,12 @@ export default async function EventsPage() {
             LABELS[String(r.name)] ?? String(r.name),
             r.props ? JSON.stringify(r.props).slice(0, 120) : '',
           ])}
+          sortValues={(failures.data ?? []).map((r) => [
+            ts(String(r.created_at)),
+            LABELS[String(r.name)] ?? String(r.name),
+            r.props ? JSON.stringify(r.props) : null,
+          ])}
+          defaultSort={{ col: 0, dir: 'desc' }}
           empty="沒有失敗紀錄"
         />
       </Section>
