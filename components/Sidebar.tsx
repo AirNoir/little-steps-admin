@@ -3,10 +3,11 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, Coins, CreditCard, LayoutDashboard, LogOut, MessageSquare, Repeat, Users } from 'lucide-react';
+import { Activity, CalendarDays, Coins, CreditCard, LayoutDashboard, LogOut, MessageSquare, Repeat, Users } from 'lucide-react';
 
 const NAV = [
   { href: '/admin', label: '概況', icon: LayoutDashboard },
+  { href: '/admin/activity', label: '註冊與活躍', icon: CalendarDays },
   { href: '/admin/users', label: '使用者', icon: Users },
   { href: '/admin/subscriptions', label: '訂閱', icon: CreditCard },
   { href: '/admin/retention', label: '留存', icon: Repeat },
