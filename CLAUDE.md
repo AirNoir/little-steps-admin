@@ -23,8 +23,17 @@ npm run build    # 型別檢查 + build
 ```
 
 ## 頁面
-`/admin` 概況（活躍、錄音、訂閱、成本、近 30 天走勢、功能採用、錄音類型）、`/admin/retention` 週留存、
-`/admin/cost` OpenAI 成本估算、`/admin/events` 行為事件與失敗紀錄。資料來源全是 DB 的 views，邏輯留在資料庫。
+`/admin` 概況（活躍、錄音、訂閱、成本、近 30 天走勢、功能採用、錄音類型）、
+`/admin/activity` 註冊與活躍（每日／每週新註冊、活躍人數＝當天開 App 或有任何操作一人一天一次、有錄音的人；
+各管道點擊＝官網 `littlestep.me/go/<管道>` 追蹤連結）、
+`/admin/users` 使用者名單（排序、裝置、手動開通 Pro），點 Email 進 `/admin/users/[id]` 單人旅程
+（註冊→建孩子→第一則→另一天又記→第 7 天後，每日活動格、時間軸；不顯示錄音內容與孩子姓名）、
+`/admin/subscriptions` 訂閱、`/admin/retention` 週留存、`/admin/cost` OpenAI 成本估算、
+`/admin/events` 行為事件與失敗紀錄、`/admin/feedback` 意見回饋。
+資料來源大多是 DB 的 views（App repo `supabase/migrations/`），邏輯留在資料庫。
+活躍／註冊的 view 是物化的，每 30 分 refresh（pg_cron `refresh-admin-matviews`）。
+
+部署：`npx vercel --prod --yes`（Git 自動部署未接；需 Node 22）。
 
 ## 部署
 Vercel，網域 `admin.littlestep.me`（DNS 在 Cloudflare，CNAME → `cname.vercel-dns.com`）。
