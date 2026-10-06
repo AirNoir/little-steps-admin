@@ -18,6 +18,8 @@ const getActivity = unstable_cache(
     Promise.all([
       supabaseAdmin.from('v_activity_daily').select('*').order('day', { ascending: true }),
       supabaseAdmin.from('v_activity_weekly').select('*').order('week', { ascending: true }),
+      // 官網 /go/<管道> 追蹤連結（App repo migration 20261006_link_clicks.sql）
+      supabaseAdmin.from('v_link_clicks_daily').select('*'),
     ]),
   ['admin-activity'],
   { revalidate: 300 },
@@ -46,7 +48,7 @@ const both = (main: number, guest: number) => (
 );
 
 export default async function ActivityPage() {
-  const [dailyRes, weeklyRes] = await getActivity();
+  const [dailyRes, weeklyRes, clicksRes] = await getActivity();
   const daily: Daily[] = (dailyRes.data ?? []).map((r) => ({ day: String(r.day), ...toCounts(r) }));
   const weekly: Weekly[] = (weeklyRes.data ?? []).map((r) => ({ week: String(r.week), active_user_days: n(r.active_user_days), ...toCounts(r) }));
 
@@ -58,6 +60,23 @@ export default async function ActivityPage() {
   const lastWeek = weekly.at(-2);
   const chartDays = daily.slice(-30);
   const weeksShown = [...weekly].slice(-12).reverse();
+
+  // 各管道點擊：今天／近 7 天／近 30 天／全部（以 v_activity_daily 最後一天當「今天」，同為台北時間）
+  const todayKey = today?.day ?? '';
+  const since = (days: number) => (todayKey ? addDays(todayKey, -(days - 1)) : '');
+  const clickRows = (clicksRes.data ?? []).map((r) => ({ day: String(r.day), slug: String(r.slug), clicks: n(r.clicks), ios: n(r.ios), android: n(r.android) }));
+  const bySlug = new Map<string, { today: number; d7: number; d30: number; all: number; ios: number; android: number }>();
+  for (const r of clickRows) {
+    const cur = bySlug.get(r.slug) ?? { today: 0, d7: 0, d30: 0, all: 0, ios: 0, android: 0 };
+    cur.all += r.clicks;
+    cur.ios += r.ios;
+    cur.android += r.android;
+    if (r.day === todayKey) cur.today += r.clicks;
+    if (r.day >= since(7)) cur.d7 += r.clicks;
+    if (r.day >= since(30)) cur.d30 += r.clicks;
+    bySlug.set(r.slug, cur);
+  }
+  const channels = [...bySlug.entries()].sort((a, b) => b[1].d30 - a[1].d30 || b[1].all - a[1].all);
   const updated = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 
   return (
@@ -124,6 +143,27 @@ export default async function ActivityPage() {
             r.week, signupAll(r), activeAll(r), activeAll(r) ? r.active_user_days / activeAll(r) : null, r.recorders, r.recordings,
           ])}
           empty="還沒有資料"
+        />
+      </Section>
+
+      <Section
+        title="各管道點擊"
+        subtitle="官網追蹤連結 littlestep.me/go/<管道> 的點擊數（連結預覽爬蟲不算）。只算點擊，不代表一定有下載"
+      >
+        <Table
+          head={['管道', '連結', '今天', '近 7 天', '近 30 天', '全部', 'iPhone／Android']}
+          align={['left', 'left', 'right', 'right', 'right', 'right', 'right']}
+          rows={channels.map(([slug, v]) => [
+            <span key="s" className="font-medium">{slug}</span>,
+            <span key="u" className="font-mono text-xs text-muted">littlestep.me/go/{slug}</span>,
+            fmt(v.today),
+            fmt(v.d7),
+            fmt(v.d30),
+            fmt(v.all),
+            <span key="p" className="whitespace-nowrap text-xs text-muted">{fmt(v.ios)}／{fmt(v.android)}</span>,
+          ])}
+          sortValues={channels.map(([slug, v]) => [slug, slug, v.today, v.d7, v.d30, v.all, v.ios])}
+          empty="還沒有人點過追蹤連結"
         />
       </Section>
 
