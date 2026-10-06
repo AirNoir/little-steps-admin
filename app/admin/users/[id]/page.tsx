@@ -77,6 +77,11 @@ const EVENT_LABEL: Record<string, string> = {
   quota_blocked: '錄音額度被擋',
   analyze_failed: '錄音分析失敗',
   admin_set_pro: '後台手動調整 Pro',
+  record_tapped: '按下錄音',
+  ai_consent_declined: '拒絕 AI 同意',
+  mic_denied: '拒絕麥克風權限',
+  first_record_nudge_set: '設定首錄提醒',
+  referral_prompt: '推薦碼提示',
 };
 
 const MILESTONE_STATUS: Record<string, string> = { achieved: '做到了', not_yet: '還沒', unsure: '不確定' };
@@ -102,7 +107,7 @@ const KIND_STYLE: Record<Kind, { icon: React.ComponentType<{ size?: number }>; c
 
 const eventKind = (name: string): Kind =>
   name.startsWith('paywall') ? 'paywall'
-  : ['analyze_failed', 'quota_blocked', 'recording_cancelled', 'recording_truncated'].includes(name) ? 'problem'
+  : ['analyze_failed', 'quota_blocked', 'recording_cancelled', 'recording_truncated', 'ai_consent_declined', 'mic_denied'].includes(name) ? 'problem'
   : name === 'report_shared' || name === 'data_exported' ? 'share'
   : name.startsWith('goal') ? 'goal'
   : name.startsWith('invite') ? 'family'

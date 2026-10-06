@@ -19,6 +19,11 @@ const LABELS: Record<string, string> = {
   quota_blocked: '額度被擋（伺服器）',
   analyze_failed: '分析失敗（伺服器）',
   admin_set_pro: '後台手動調整 Pro',
+  record_tapped: '按下錄音',
+  ai_consent_declined: '拒絕 AI 同意',
+  mic_denied: '拒絕麥克風權限',
+  first_record_nudge_set: '設定首錄提醒',
+  referral_prompt: '推薦碼提示',
 };
 
 export default async function EventsPage() {
