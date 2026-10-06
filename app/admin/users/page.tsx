@@ -304,7 +304,7 @@ export default async function UsersPage({ searchParams }: PageProps<'/admin/user
                           {u.anonymous ? '訪' : (u.email ?? '?').slice(0, 1).toUpperCase()}
                         </span>
                         <div className="min-w-0">
-                          <div className="max-w-[220px] truncate" title={u.email ?? undefined}>{u.anonymous ? <span className="text-muted">訪客（匿名）</span> : u.email ?? '—'}</div>
+                          <Link href={`/admin/users/${u.id}`} className="block max-w-[220px] truncate hover:text-primary hover:underline" title={u.email ?? undefined}>{u.anonymous ? <span className="text-muted">訪客（匿名）</span> : u.email ?? '—'}</Link>
                           <div className="whitespace-nowrap text-[11px] text-subtle">
                             <span className="font-mono" title={u.id}>{u.id.slice(0, 8)}</span>
                             <span className="mx-1">·</span>
