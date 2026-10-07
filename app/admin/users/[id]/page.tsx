@@ -86,6 +86,24 @@ const EVENT_LABEL: Record<string, string> = {
 
 const MILESTONE_STATUS: Record<string, string> = { achieved: '做到了', not_yet: '還沒', unsure: '不確定' };
 
+// iOS build 號碼 → 版本（ASC 查證 2026-10-07）。之後的新 build 沒列到就只顯示 build 號
+const iosVersion = (build: number) =>
+  build <= 16 ? '1.0.0' : build <= 19 ? '1.1.0' : build <= 23 ? '1.1.1' : build <= 25 ? '1.2.0' : build <= 28 ? '1.3.0' : build <= 31 ? '1.3.1' : null;
+const clientLabel = (c: string | null) => {
+  const m = /^iOS build (\d+)$/.exec(c ?? '');
+  if (!m) return c ?? '未知';
+  const v = iosVersion(Number(m[1]));
+  return v ? `iOS ${v}（build ${m[1]}）` : `iOS build ${m[1]}`;
+};
+const hours = (s: number) => (s >= 3600 ? `${(s / 3600).toFixed(1)} 小時` : s >= 60 ? `${Math.round(s / 60)} 分鐘` : `${s} 秒`);
+const DAYPART = [
+  { label: '深夜（0–6 點）', from: 0, to: 6 },
+  { label: '早上（6–12 點）', from: 6, to: 12 },
+  { label: '下午（12–18 點）', from: 12, to: 18 },
+  { label: '晚上（18–24 點）', from: 18, to: 24 },
+];
+const taipeiHour = (v: string) => Number(new Date(v).toLocaleString('en-US', { timeZone: TZ, hour: '2-digit', hour12: false })) % 24;
+
 type Kind = 'signup' | 'child' | 'record' | 'manual' | 'paywall' | 'problem' | 'share' | 'goal' | 'practice' | 'med' | 'family' | 'feedback' | 'other';
 type Item = { at: string; kind: Kind; title: string; detail?: string | null; count?: number };
 
@@ -121,7 +139,7 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
   const user = authData?.user;
   if (!user) notFound();
 
-  const [{ data: profile }, { data: kids }, { data: shared }, { data: logs }, { data: events }, { data: feedback }] = await Promise.all([
+  const [{ data: profile }, { data: kids }, { data: shared }, { data: logs }, { data: events }, { data: feedback }, { data: sessions }, { data: activeDays }] = await Promise.all([
     supabaseAdmin.from('profiles').select('is_pro,last_platform,last_device_model,last_app_version,last_seen_at').eq('id', id).maybeSingle(),
     supabaseAdmin.from('children').select('id,birth_date,gender,created_at').eq('user_id', id).order('created_at'),
     supabaseAdmin.from('child_caregivers').select('child_id,role,created_at').eq('user_id', id),
@@ -133,19 +151,33 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
       .order('created_at'),
     supabaseAdmin.from('app_events').select('name,props,created_at').eq('user_id', id).order('created_at').limit(1000),
     supabaseAdmin.from('feedback').select('message,created_at').eq('user_id', id),
+    // 登入紀錄：auth.sessions 包成 view（App repo migration 20261007_admin_user_sessions.sql），不含 IP
+    supabaseAdmin.from('v_admin_user_sessions').select('signed_in_at,last_used_at,expires_at,client').eq('user_id', id).order('signed_in_at', { ascending: false }).limit(30),
+    // 活躍日（開 App 或任何操作，一天一筆；1.3.1 起含開 App）
+    supabaseAdmin.from('v_user_active_days').select('day').eq('user_id', id),
   ]);
 
   const kidIds = [...(kids ?? []).map((k) => k.id), ...(shared ?? []).map((s) => s.child_id)];
   const [{ data: goals }, { data: milestones }, { data: meds }, { data: programs }] = await Promise.all([
-    supabaseAdmin.from('child_goals').select('domain,created_at').eq('created_by', id),
-    kidIds.length ? supabaseAdmin.from('milestone_records').select('status,created_at').in('child_id', kidIds) : Promise.resolve({ data: [] }),
-    supabaseAdmin.from('child_medications').select('created_at').eq('created_by', id),
-    kidIds.length ? supabaseAdmin.from('home_programs').select('id,created_at').in('child_id', kidIds) : Promise.resolve({ data: [] }),
+    supabaseAdmin.from('child_goals').select('id,child_id,domain,status,created_at').eq('created_by', id),
+    kidIds.length ? supabaseAdmin.from('milestone_records').select('child_id,status,created_at').in('child_id', kidIds) : Promise.resolve({ data: [] }),
+    supabaseAdmin.from('child_medications').select('id,child_id,created_at').eq('created_by', id),
+    kidIds.length ? supabaseAdmin.from('home_programs').select('id,child_id,created_at').in('child_id', kidIds) : Promise.resolve({ data: [] }),
   ]);
   const programIds = (programs ?? []).map((p: { id: string }) => p.id);
-  const { data: checkins } = programIds.length
-    ? await supabaseAdmin.from('practice_checkins').select('created_at').in('program_id', programIds)
-    : { data: [] as { created_at: string }[] };
+  const medIds = (meds ?? []).map((m) => m.id as string);
+  const goalIds = (goals ?? []).map((g) => g.id as string);
+  const [{ data: checkins }, { data: medLogs }, { data: goalCheckins }] = await Promise.all([
+    programIds.length
+      ? supabaseAdmin.from('practice_checkins').select('program_id,created_at').in('program_id', programIds)
+      : Promise.resolve({ data: [] as { program_id: string; created_at: string }[] }),
+    medIds.length
+      ? supabaseAdmin.from('child_medication_logs').select('medication_id,status').in('medication_id', medIds)
+      : Promise.resolve({ data: [] as { medication_id: string; status: string }[] }),
+    goalIds.length
+      ? supabaseAdmin.from('child_goal_checkins').select('goal_id').in('goal_id', goalIds)
+      : Promise.resolve({ data: [] as { goal_id: string }[] }),
+  ]);
 
   const kidNo = new Map((kids ?? []).map((k, i) => [k.id as string, i + 1]));
   const allLogs = (logs ?? []) as { created_at: string; session_type: string | null; duration_seconds: number | null; child_id: string | null; source: string | null; summary: string | null; notes: string | null }[];
@@ -221,6 +253,73 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
     .filter((v): v is string => !!v)
     .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
 
+  // ── 使用統計（只有次數、時間與種類，不含內容） ──
+  const voiceLogs = allLogs.filter((l) => l.source !== 'manual');
+  const totalSeconds = voiceLogs.reduce((t, l) => t + (l.duration_seconds ?? 0), 0);
+  const avgSeconds = voiceLogs.length ? Math.round(totalSeconds / voiceLogs.length) : 0;
+  const daypartCounts = DAYPART.map((d) => ({ ...d, n: allLogs.filter((l) => { const h = taipeiHour(l.created_at); return h >= d.from && h < d.to; }).length }));
+  const topDaypart = [...daypartCounts].sort((a, b) => b.n - a.n)[0];
+  const weekdayCounts = [0, 0, 0, 0, 0, 0, 0];
+  for (const l of allLogs) weekdayCounts[new Date(`${dayKey(l.created_at)}T12:00:00Z`).getUTCDay()] += 1;
+  const activeDaySet = new Set([...(activeDays ?? []).map((d) => String(d.day)), ...logDays]);
+  const active30 = [...activeDaySet].filter((d) => d > dayKey(now - 30 * DAY)).length;
+  const evCount = (name: string) => (events ?? []).filter((e) => e.name === name).length;
+  const featureUse: [string, number][] = [
+    ['打開付費牆', evCount('paywall_viewed')],
+    ['分享回診摘要', evCount('report_shared')],
+    ['匯出資料', evCount('data_exported')],
+    ['送出家人邀請', evCount('invite_sent')],
+    ['切換提醒', evCount('reminder_toggled')],
+    ['錄音中途取消', evCount('recording_cancelled')],
+    ['錄音被上限截斷', evCount('recording_truncated')],
+    ['拒絕 AI 同意／麥克風', evCount('ai_consent_declined') + evCount('mic_denied')],
+  ];
+  const sessionRows = (sessions ?? []) as { signed_in_at: string; last_used_at: string | null; expires_at: string | null; client: string | null }[];
+
+  // ── 每個孩子 ──（只用編號、年齡、性別；不顯示姓名）
+  type KidStat = { id: string; label: string; meta: string; shared: boolean };
+  const kidList: KidStat[] = [
+    ...(kids ?? []).map((k, i) => ({
+      id: k.id as string,
+      label: `孩子 ${i + 1}`,
+      meta: [age(k.birth_date, dayKey(now)), k.gender === 'boy' ? '男孩' : k.gender === 'girl' ? '女孩' : null, `${dayKey(k.created_at).replaceAll('-', '/')} 建立`].filter(Boolean).join('・'),
+      shared: false,
+    })),
+    ...(shared ?? []).map((sh, i) => ({ id: sh.child_id as string, label: `共享的孩子 ${i + 1}`, meta: `家人共享加入（${sh.role ?? '照顧者'}）`, shared: true })),
+  ];
+  const programChild = new Map(((programs ?? []) as { id: string; child_id: string }[]).map((p) => [p.id, p.child_id]));
+  const medChild = new Map(((meds ?? []) as { id: string; child_id: string }[]).map((m) => [m.id, m.child_id]));
+  const goalChild = new Map(((goals ?? []) as { id: string; child_id: string }[]).map((g) => [g.id, g.child_id]));
+  const kidStats = kidList.map((k) => {
+    const kl = allLogs.filter((l) => l.child_id === k.id);
+    const kv = kl.filter((l) => l.source !== 'manual');
+    const types = new Map<string, number>();
+    for (const l of kv) types.set(SESSION_LABEL[l.session_type ?? ''] ?? '未分類', (types.get(SESSION_LABEL[l.session_type ?? ''] ?? '未分類') ?? 0) + 1);
+    const ms = ((milestones ?? []) as { child_id: string; status: string | null }[]).filter((m) => m.child_id === k.id);
+    const kGoals = ((goals ?? []) as { id: string; child_id: string; status: string | null }[]).filter((g) => g.child_id === k.id);
+    const kPrograms = ((programs ?? []) as { id: string; child_id: string }[]).filter((p) => p.child_id === k.id);
+    const kMeds = ((meds ?? []) as { id: string; child_id: string }[]).filter((m) => m.child_id === k.id);
+    return {
+      ...k,
+      logs: kl.length,
+      voice: kv.length,
+      manual: kl.length - kv.length,
+      seconds: kv.reduce((t, l) => t + (l.duration_seconds ?? 0), 0),
+      last: kl.at(-1)?.created_at ?? null,
+      types: [...types.entries()].sort((a, b) => b[1] - a[1]),
+      msAchieved: ms.filter((m) => (m.status ?? 'achieved') === 'achieved').length,
+      msNotYet: ms.filter((m) => m.status === 'not_yet').length,
+      msUnsure: ms.filter((m) => m.status === 'unsure').length,
+      goals: kGoals.length,
+      goalsAchieved: kGoals.filter((g) => g.status === 'achieved').length,
+      goalCheckins: ((goalCheckins ?? []) as { goal_id: string }[]).filter((c) => goalChild.get(c.goal_id) === k.id).length,
+      programs: kPrograms.length,
+      practiceCheckins: ((checkins ?? []) as { program_id: string }[]).filter((c) => programChild.get(c.program_id) === k.id).length,
+      meds: kMeds.length,
+      medGiven: ((medLogs ?? []) as { medication_id: string; status: string }[]).filter((m) => medChild.get(m.medication_id) === k.id && m.status === 'given').length,
+    };
+  });
+
   // ── 每日活動：註冊日到今天，最多 84 天（12 週） ──
   const today = dayKey(now);
   const startDay = Math.max(dayStart(dayKey(created)), dayStart(today) - 83 * DAY);
@@ -268,6 +367,106 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
           hint={lastActive ? `${twFull(lastActive)}${lastActive === profile?.last_seen_at ? '・開 App' : lastActive === user.last_sign_in_at ? '・登入' : ''}` : undefined}
         />
       </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Section title="登入紀錄" subtitle="每次登入一筆（登出或過期後系統可能清掉舊紀錄）。不顯示 IP">
+          {sessionRows.length === 0 ? (
+            <p className="text-sm text-muted">沒有登入紀錄</p>
+          ) : (
+            <div className="-mx-2 overflow-x-auto px-2">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="label-caps text-left">
+                    <th className="border-b border-line pb-2 pr-4">登入時間</th>
+                    <th className="border-b border-line pb-2 pr-4">最後使用</th>
+                    <th className="border-b border-line pb-2">裝置／版本</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sessionRows.slice(0, 15).map((r, i) => (
+                    <tr key={`${r.signed_in_at}-${i}`} className="border-b border-line/60 last:border-0">
+                      <td className="whitespace-nowrap py-2 pr-4 tabular-nums">{twFull(r.signed_in_at)}</td>
+                      <td className="whitespace-nowrap py-2 pr-4 tabular-nums text-muted">
+                        {r.last_used_at ? `${twFull(r.last_used_at)}` : '—'}
+                      </td>
+                      <td className="py-2">{clientLabel(r.client)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {sessionRows.length > 15 ? <p className="mt-2 text-xs text-subtle">只列最近 15 筆，共 {fmt(sessionRows.length)} 筆</p> : null}
+            </div>
+          )}
+          <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+            <div className="rounded-xl bg-bg/60 p-3"><div className="label-caps">近 30 天活躍天數</div><div className="mt-1 text-lg font-semibold tabular-nums">{fmt(active30)}</div></div>
+            <div className="rounded-xl bg-bg/60 p-3"><div className="label-caps">累計活躍天數</div><div className="mt-1 text-lg font-semibold tabular-nums">{fmt(activeDaySet.size)}</div></div>
+            <div className="rounded-xl bg-bg/60 p-3"><div className="label-caps">登入次數</div><div className="mt-1 text-lg font-semibold tabular-nums">{fmt(sessionRows.length)}{sessionRows.length >= 30 ? '+' : ''}</div></div>
+          </div>
+        </Section>
+
+        <Section title="使用統計" subtitle="只有次數、時間與種類，不含任何紀錄內容">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+            <div><dt className="label-caps">錄音總長度</dt><dd className="mt-0.5 tabular-nums">{voiceLogs.length ? hours(totalSeconds) : '—'}</dd></div>
+            <div><dt className="label-caps">平均每則</dt><dd className="mt-0.5 tabular-nums">{voiceLogs.length ? duration(avgSeconds) : '—'}</dd></div>
+            <div><dt className="label-caps">最常記錄的時段</dt><dd className="mt-0.5">{allLogs.length ? `${topDaypart.label}・${topDaypart.n} 則` : '—'}</dd></div>
+            <div>
+              <dt className="label-caps">星期分布（日→六）</dt>
+              <dd className="mt-1 flex items-end gap-1">
+                {weekdayCounts.map((c, i) => (
+                  <span key={i} className="flex flex-col items-center gap-0.5" title={`週${['日', '一', '二', '三', '四', '五', '六'][i]}：${c} 則`}>
+                    <span className="w-4 rounded-sm bg-primary/60" style={{ height: `${4 + (Math.max(...weekdayCounts) ? (c / Math.max(...weekdayCounts)) * 28 : 0)}px` }} />
+                    <span className="text-[10px] text-subtle">{['日', '一', '二', '三', '四', '五', '六'][i]}</span>
+                  </span>
+                ))}
+              </dd>
+            </div>
+          </dl>
+          <div className="mt-5">
+            <div className="label-caps mb-2">功能使用次數</div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+              {featureUse.map(([label, n]) => (
+                <div key={label} className="flex justify-between border-b border-line/50 pb-1">
+                  <span className="text-muted">{label}</span>
+                  <span className={`tabular-nums ${n ? '' : 'text-subtle'}`}>{fmt(n)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Section>
+      </div>
+
+      <Section title="每個孩子" subtitle="這位使用者自己記的部分；只用編號、年齡與性別，不顯示姓名">
+        {kidStats.length === 0 ? (
+          <p className="text-sm text-muted">還沒有建立孩子</p>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {kidStats.map((k) => (
+              <div key={k.id} className="rounded-2xl border border-line bg-bg/40 p-4">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h3 className="font-semibold">{k.label}</h3>
+                  <span className="text-xs text-muted">{k.meta}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                  <div className="rounded-xl bg-surface p-2.5"><div className="label-caps">紀錄</div><div className="mt-0.5 text-lg font-semibold tabular-nums">{fmt(k.logs)}</div><div className="text-[11px] text-subtle">錄音 {k.voice}・手動 {k.manual}</div></div>
+                  <div className="rounded-xl bg-surface p-2.5"><div className="label-caps">錄音長度</div><div className="mt-0.5 text-lg font-semibold tabular-nums">{k.voice ? hours(k.seconds) : '—'}</div></div>
+                  <div className="rounded-xl bg-surface p-2.5"><div className="label-caps">最後一則</div><div className="mt-0.5 text-lg font-semibold">{k.last ? daysAgo(k.last, now) : '—'}</div></div>
+                </div>
+                {k.types.length ? (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {k.types.map(([t, n]) => <Badge key={t}>{t} {n}</Badge>)}
+                  </div>
+                ) : null}
+                <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <div className="flex justify-between"><dt className="text-muted">里程碑</dt><dd className="tabular-nums">做到 {k.msAchieved}・還沒 {k.msNotYet}・不確定 {k.msUnsure}</dd></div>
+                  <div className="flex justify-between"><dt className="text-muted">個別化目標</dt><dd className="tabular-nums">{k.goals} 個（達成 {k.goalsAchieved}）・打卡 {k.goalCheckins}</dd></div>
+                  <div className="flex justify-between"><dt className="text-muted">回家練習</dt><dd className="tabular-nums">{k.programs} 項・打卡 {k.practiceCheckins}</dd></div>
+                  <div className="flex justify-between"><dt className="text-muted">用藥</dt><dd className="tabular-nums">{k.meds} 種・已餵 {k.medGiven}</dd></div>
+                </dl>
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
 
       <Section title="使用旅程" subtitle="停在哪一步；每一步標出距離註冊多久">
         <ol className="grid gap-3 sm:grid-cols-5">
